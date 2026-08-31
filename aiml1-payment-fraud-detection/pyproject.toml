@@ -12,3 +12,8 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
+# Makes `pytest` behave like `python -m pytest`, which implicitly puts the
+# project root on sys.path. Without this, bare `pytest` cannot import src/ or
+# data/ -- and the two invocations disagreeing is exactly how a suite passes
+# locally and fails in CI.
+pythonpath = ["."]
