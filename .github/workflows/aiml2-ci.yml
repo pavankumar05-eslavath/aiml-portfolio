@@ -1,0 +1,62 @@
+name: AIML-2 Indian Startup Funding
+
+on:
+  push:
+    branches: [main]
+    paths: ['aiml2-indian-startup-funding/**', '.github/workflows/aiml2-ci.yml']
+  pull_request:
+    paths: ['aiml2-indian-startup-funding/**', '.github/workflows/aiml2-ci.yml']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: aiml2-indian-startup-funding
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: aiml2-indian-startup-funding/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint
+        run: |
+          pip install ruff
+          ruff check data src tests
+
+      # The suite carries the audit's claims, which are the point of this project.
+      # It pins that the escape defect is literal text with no real U+00A0 (so the
+      # obvious grep misses it), that unescaping leaves no backslash debris, that
+      # Indian digit grouping parses to 200M not 20M, that the INR row is flagged
+      # and converted while every OTHER amount is untouched (the nullable-dtype
+      # trap that silently divided all 2,073 amounts by 71), that entity aliases
+      # merge Ola/Ola Cabs WITHOUT merging Ola Electric, and that placeholders
+      # never reach the investor leaderboard.
+      - name: Tests
+        run: pytest tests -q
+
+      # Runs against the generated stand-in; the real CSV is gitignored and not
+      # downloaded in CI. It reproduces the DEFECTS, so the cleaning functions are
+      # genuinely exercised. Figures in INSIGHTS.md come from the real 3,044-row
+      # file and their tests are skipped here via the REAL_ONLY marker.
+      - name: Run every stage
+        run: make all
+
+      - name: Upload outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiml2-outputs
+          path: aiml2-indian-startup-funding/outputs/
+          retention-days: 14
+          if-no-files-found: ignore

@@ -7,6 +7,7 @@ support, and the evidence for it.
 | Project | What it demonstrates |
 |---|---|
 | **[AIML-1 — Online Payment Fraud Detection, audited](./aiml1-payment-fraud-detection)** | Reproduction and audit of a widely-followed tutorial on 6.36M PaySim transactions. RandomForest matches the published figure to **16 significant figures**; its XGBoost result does not reproduce at all (**0.9992 → 0.7125**), root-caused to XGBoost 2.0 estimating `base_score` from the class prior. Then the real finding: the corrected pipeline scores **1.000 PR AUC with zero false positives**, so I went looking for the leak — a **3-clause rule** gets precision **0.9999** / recall **0.9750** with **one false positive in 6.36M rows**. The tutorial's 99.9% measures recovery of the simulator's fraud script, not fraud detection. |
+| **[AIML-2 — Indian Startup Funding, audited](./aiml2-indian-startup-funding)** | Audit of a widely-used Kaggle dataset that loads cleanly and parses without error. Its largest amount is in the **wrong currency** — ₹390 crore read as $3.9B, making a bike-taxi app out-raise Flipkart, and **one cell is 10.1% of the $38.14B total**. Its escape-text defect is invisible to its own diagnostic: `grep -P '\xc2\xa0'` finds **zero matches** while 92 cells hold the literal 8-character `\\xc2\\xa0`. And its time axis runs backwards — deal counts fall 993 → 111 while, benchmarked against Tracxn and Inc42, coverage drops to **14%** and Indian funding actually hit a **record high** in 2019. |
 
 ## What these are not
 
