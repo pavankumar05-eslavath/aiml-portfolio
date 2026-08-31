@@ -128,6 +128,10 @@ Selected: **none**. Calibrators are fitted with internal CV on the training spli
 
 `ece` is reported next to Brier because the Brier score mixes calibration and discrimination, so it can improve for the wrong reason.
 
+![calibration curve](./figures/10_calibration_curve.png)
+
+The lower panel is not decoration: the top probability bins hold only a few dozen customers, so the wobble at the high end is small-sample noise rather than a calibration failure. Reading the curve without the counts invites fixing a problem that is not there.
+
 ## 6. Evaluation and threshold selection
 
 ### Why accuracy is not the headline
@@ -158,6 +162,14 @@ value          = MonthlyCharges x 12 months
 | **per-customer EV rule** | **63,799** | 713 |
 
 The per-customer rule wins because the break-even probability varies with customer value, from **8.2%** to **51.9%** across the test set. A single global cut cannot express that a high-value customer is worth contacting at much lower risk than a low-value one.
+
+![threshold analysis](./figures/11_threshold_analysis.png)
+
+![pr and roc curves](./figures/12_pr_roc_curves.png)
+
+The PR baseline is the **base rate**, not 0.5 — which is why a PR-AUC of ~0.61 against a 26.5% base rate is a genuine result rather than a poor one.
+
+![confusion matrices](./figures/13_confusion_matrices.png)
 
 ### Sensitivity to the assumptions
 
@@ -435,7 +447,7 @@ Produced by `python -m src.run predict`.
     "name": "xgboost",
     "threshold": 0.13,
     "calibration": "none",
-    "trained_at": "2026-08-31T18:19:34+00:00"
+    "trained_at": "2026-08-31T19:01:22+00:00"
   },
   "caveat": "Currency figures use the assumed retention economics in configs/config.yaml; they are not measured business results."
 }

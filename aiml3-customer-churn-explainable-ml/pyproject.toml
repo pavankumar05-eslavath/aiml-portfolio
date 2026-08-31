@@ -15,6 +15,7 @@ ignore = ["E501", "RUF001"]
 # matplotlib.use("Agg") must run before pyplot is imported, which E402 forbids.
 "src/eda.py" = ["E402"]
 "src/explainability/shap_analysis.py" = ["E402"]
+"src/evaluation/plots.py" = ["E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

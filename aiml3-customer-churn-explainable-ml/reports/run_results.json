@@ -102,7 +102,7 @@
         "recall": 0.5238447110930332,
         "precision": 0.670874837379414,
         "brier": 0.13263098597526551,
-        "fit_seconds": 14.532715082999857
+        "fit_seconds": 14.687383038000917
       },
       {
         "model": "random_forest",
@@ -114,7 +114,7 @@
         "recall": 0.5030077056922695,
         "precision": 0.6788040312169444,
         "brier": 0.1329916499280715,
-        "fit_seconds": 72.6614992650002
+        "fit_seconds": 72.73323347500082
       },
       {
         "model": "logistic_regression",
@@ -126,7 +126,7 @@
         "recall": 0.539328407113642,
         "precision": 0.6712250694409111,
         "brier": 0.13237078901161708,
-        "fit_seconds": 1.932195932000468
+        "fit_seconds": 1.8622799849999865
       },
       {
         "model": "logistic_regression_plain",
@@ -138,7 +138,7 @@
         "recall": 0.541341829932434,
         "precision": 0.6710088834399611,
         "brier": 0.13251327291734688,
-        "fit_seconds": 2.020005922531709e-07
+        "fit_seconds": 1.5700061339884996e-07
       },
       {
         "model": "dummy_prior",
@@ -150,7 +150,7 @@
         "recall": 0.0,
         "precision": 0.0,
         "brier": 0.1945603738737826,
-        "fit_seconds": 3.289997039246373e-07
+        "fit_seconds": 3.679997462313622e-07
       }
     ],
     "best_model": "xgboost",
@@ -1333,7 +1333,7 @@
       "name": "xgboost",
       "threshold": 0.13,
       "calibration": "none",
-      "trained_at": "2026-08-31T18:19:34+00:00"
+      "trained_at": "2026-08-31T19:01:22+00:00"
     },
     "caveat": "Currency figures use the assumed retention economics in configs/config.yaml; they are not measured business results."
   }

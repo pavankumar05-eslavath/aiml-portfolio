@@ -307,6 +307,13 @@ finds **zero** churners, and accuracy presumes a 0.5 cutoff no campaign would ch
 | Brier | 0.1425 | 0.1425 |
 | TN / FP / FN / TP | 931 / 103 / 196 / 176 | 566 / 468 / 35 / 337 |
 
+![confusion matrices](./reports/figures/13_confusion_matrices.png)
+
+Moving the threshold from 0.50 to 0.13 converts **161 missed churners into caught ones**
+(196 → 35 false negatives) at the cost of 365 extra wasted contacts. Whether that trade is
+worth making is an economic question, not a statistical one — which is what the next
+section answers.
+
 ### Cost/value framework
 
 ```
@@ -330,10 +337,17 @@ probability varies with customer value — from **8.2% to 51.9%** across the tes
 single global cut cannot express that a high-value customer is worth contacting at much
 lower risk than a low-value one.
 
+![threshold analysis](./reports/figures/11_threshold_analysis.png)
+
 **Sensitivity.** The optimal threshold is a function of parameters the data cannot
 supply, and it moves from **0.03 to 0.76** across the assumed grid. That dependency is
 why one threshold is never presented as *the* answer — the full table is in the
 [model report](./reports/model_report.md).
+
+![pr and roc curves](./reports/figures/12_pr_roc_curves.png)
+
+The PR baseline is the **base rate**, not 0.5 — which is why PR-AUC ~0.61 against a 26.5%
+base rate is a genuine result rather than a weak one.
 
 ## Calibration
 
@@ -343,9 +357,16 @@ why one threshold is never presented as *the* answer — the full table is in th
 | sigmoid | 0.1437 | 0.0461 | 0.4428 | 0.6178 |
 | isotonic | **0.1421** | 0.0260 | 0.4384 | 0.6185 |
 
+![calibration curve](./reports/figures/10_calibration_curve.png)
+
 Calibrators are fitted with internal CV on the **training** split and judged on the
 untouched test set. ECE is reported next to Brier because Brier mixes calibration with
 discrimination and can improve for the wrong reason.
+
+The count panel underneath is load-bearing: the top probability bins hold only a few
+dozen customers, so the wobble at the high end is small-sample noise, not a calibration
+failure. Sigmoid is the visibly worst of the three — it deviates across the mid-range
+where most customers actually sit.
 
 Isotonic wins on Brier by 0.0004 — below the `min_brier_gain: 0.001` guard set in config
 *before* seeing results — so the uncalibrated model ships. The reliability of the
@@ -495,7 +516,7 @@ pip install -r requirements.txt
 
 make download     # fetch the real dataset (7,043 rows); or `make sample`
 make all          # audit -> eda -> train -> explain -> predict -> report
-make test         # 51 tests
+make test         # 52 tests
 make lint         # ruff
 ```
 
@@ -563,13 +584,15 @@ python -m src.inference.predict --input customers.csv --output scored.csv --expl
 ```
 aiml3-customer-churn-explainable-ml/
 ├── configs/config.yaml          all tunable values incl. declared economics
-├── data/raw/                    gitignored; fetched or generated
+├── data/
+│   ├── raw/                     gitignored; fetched or generated
+│   └── processed/               scored_test_customers.csv — ranked call list
 ├── models/                      bundle + human-readable metadata sidecar
 ├── notebooks/                   01..06, executed, thin wrappers over src/
 ├── reports/
 │   ├── data_audit.md            generated
 │   ├── model_report.md          generated from run_results.json
-│   └── figures/                 9 figures
+│   └── figures/                 16 figures
 ├── src/
 │   ├── config.py                path resolution; no hardcoded paths
 │   ├── eda.py                   six business questions
@@ -578,10 +601,10 @@ aiml3-customer-churn-explainable-ml/
 │   ├── data/                    schema, loader, download, sample, audit
 │   ├── features/                engineer (row-wise), preprocess
 │   ├── models/                  train (+ paired tests), persist
-│   ├── evaluation/              metrics, threshold/EV, segments, error_analysis
+│   ├── evaluation/              metrics, threshold/EV, segments, error_analysis, plots
 │   ├── explainability/          shap_analysis
 │   └── inference/               predict, decision
-├── tests/                       51 tests
+├── tests/                       52 tests
 └── tools/build_notebooks.py     generates the notebooks from one source
 ```
 

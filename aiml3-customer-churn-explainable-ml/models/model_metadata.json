@@ -1,6 +1,6 @@
 {
   "model_name": "xgboost",
-  "trained_at": "2026-08-31T18:19:34+00:00",
+  "trained_at": "2026-08-31T19:01:22+00:00",
   "bundle_format_version": "1.0",
   "seed": 42,
   "threshold": 0.13,

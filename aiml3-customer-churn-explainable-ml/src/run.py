@@ -98,6 +98,7 @@ def stage_eda(cfg: Config, args) -> None:
 
 def stage_train(cfg: Config, args) -> None:
     from src.evaluation import metrics as M
+    from src.evaluation import plots
     from src.evaluation.error_analysis import (
         error_costs,
         error_frame,
@@ -180,6 +181,24 @@ def stage_train(cfg: Config, args) -> None:
     print(M.metrics_frame({"threshold_0.50": m_default,
                            f"threshold_{thr.best_threshold:.2f}": m_tuned}).round(4).to_string())
 
+    # ---- evaluation figures ----
+    figdir = cfg.resolve("paths", "figures_dir")
+    # Compare the served probabilities against the calibrated alternatives, so the
+    # reliability diagram shows what was chosen AND what was rejected.
+    prob_variants = {c.method if c.method != "none" else "uncalibrated":
+                     c.model.predict_proba(ds.X_test)[:, 1] for c in cal_all}
+    written = [
+        plots.plot_calibration(y_test, prob_variants, figdir / "10_calibration_curve.png"),
+        plots.plot_threshold_analysis(thr.curve, thr.best_threshold,
+                                     figdir / "11_threshold_analysis.png",
+                                     per_customer_value=thr.per_customer_net_value),
+        plots.plot_pr_roc(y_test, prob, figdir / "12_pr_roc_curves.png"),
+        plots.plot_confusion({"threshold 0.50": m_default,
+                              f"threshold {thr.best_threshold:.2f}": m_tuned},
+                             figdir / "13_confusion_matrices.png"),
+    ]
+    print(f"\n[figures] {', '.join(p.name for p in written)}")
+
     sens = sensitivity_analysis(y_test, prob, value, cfg)
     print("\n--- sensitivity of the optimal threshold to the assumptions ---")
     print(sens.round(3).to_string(index=False))
@@ -196,6 +215,21 @@ def stage_train(cfg: Config, args) -> None:
     camp = campaign_summary(decisions)
     print("\n--- campaign plan (risk x value) ---")
     print(camp.round(3).to_string(index=False))
+
+    # The operational artefact: one row per scored customer with risk band,
+    # expected value and recommended action, ordered so a retention team can work
+    # down it. This is what the model is actually for.
+    processed = cfg.resolve("data", "processed_dir")
+    processed.mkdir(parents=True, exist_ok=True)
+    scored = decisions.copy()
+    scored.insert(0, cfg.id_column, ds.ids_test.to_numpy())
+    scored["actually_churned"] = y_test
+    scored = scored.sort_values(["priority", "expected_value_cu"],
+                               ascending=[True, False])
+    scored_path = processed / "scored_test_customers.csv"
+    scored.to_csv(scored_path, index=False)
+    print(f"  [saved] {scored_path.relative_to(cfg.resolve('paths', 'models_dir').parent)}"
+          f"  ({len(scored):,} rows, ranked call list)")
     print(f"  contacts recommended: {int(decisions['contact_recommended'].sum())} "
           f"of {len(decisions)}; EV-overrides-band: "
           f"{int(decisions['ev_overrides_segment'].sum())}")

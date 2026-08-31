@@ -217,6 +217,11 @@ def write_report(cfg: Config, results: dict[str, Any]) -> str:
           "test set.\n")
         a("`ece` is reported next to Brier because the Brier score mixes calibration "
           "and discrimination, so it can improve for the wrong reason.\n")
+        a("![calibration curve](./figures/10_calibration_curve.png)\n")
+        a("The lower panel is not decoration: the top probability bins hold only a "
+          "few dozen customers, so the wobble at the high end is small-sample noise "
+          "rather than a calibration failure. Reading the curve without the counts "
+          "invites fixing a problem that is not there.\n")
 
     # ---------------- evaluation ----------------
     a("## 6. Evaluation and threshold selection\n")
@@ -254,6 +259,12 @@ def write_report(cfg: Config, results: dict[str, Any]) -> str:
           f"**{thr.get('breakeven_max', 0):.1%}** across the test set. A single global "
           "cut cannot express that a high-value customer is worth contacting at much "
           "lower risk than a low-value one.\n")
+
+        a("![threshold analysis](./figures/11_threshold_analysis.png)\n")
+        a("![pr and roc curves](./figures/12_pr_roc_curves.png)\n")
+        a("The PR baseline is the **base rate**, not 0.5 — which is why a PR-AUC of "
+          "~0.61 against a 26.5% base rate is a genuine result rather than a poor one.\n")
+        a("![confusion matrices](./figures/13_confusion_matrices.png)\n")
 
         sens = _df(tr.get("sensitivity"))
         if not sens.empty:
