@@ -34,6 +34,17 @@ jobs:
           pip install ruff
           ruff check src tests tools
 
+      # MUST run before the tests. The test suite's autouse fixture generates the
+      # synthetic stand-in when no data is present, so if this step ran second it
+      # would find that file, skip the download, and CI would silently never
+      # exercise the real dataset -- or the real-data claim tests.
+      #
+      # Falls back to the schema-and-defect-faithful synthetic file if the mirror
+      # is unreachable, so CI is not gated on an external host. Either way the
+      # CSVs are gitignored.
+      - name: Get data
+        run: make data
+
       # The suite carries the project's claims, not just its plumbing. It pins that
       # the group-aware split leaves ZERO feature-identical rows across the
       # train/test boundary (deduplication alone left 5), that label-conflicting
@@ -41,17 +52,13 @@ jobs:
       # engineering is stateless so it is safe to compute before the split, that a
       # single row scores identically to the batch (train/serve skew), that the
       # break-even probability satisfies the EV definition exactly, and that the
-      # risk bands track realised churn monotonically. Real-data claims -- churn
-      # rate 26.54%, 42 label conflicts, no single-feature leakage -- are skipped
-      # when running on the synthetic stand-in.
+      # risk bands track realised churn monotonically.
+      #
+      # With the real dataset present, the claim tests also run: churn rate
+      # 26.54%, 16 safe duplicates removed, 42 label conflicts, no single-feature
+      # leakage suspect, monotonic add-on protection. They skip on the stand-in.
       - name: Tests
         run: pytest tests -q
-
-      # Fetch the real dataset if reachable; fall back to the schema-and-defect
-      # faithful synthetic file so CI is not gated on an external mirror. The CSVs
-      # are gitignored either way.
-      - name: Get data
-        run: make data
 
       - name: Run every stage
         run: make all
