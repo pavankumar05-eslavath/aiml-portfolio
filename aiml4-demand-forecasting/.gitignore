@@ -1,0 +1,29 @@
+# Data is fetched or generated, never committed (~133 MB of source parquet).
+data/raw/*.parquet
+data/raw/*.csv
+data/processed/*.parquet
+data/processed/*.csv
+
+# The trained bundle is regenerable with `make train` and is large.
+models/*.joblib
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+
+# Kept deliberately (do NOT ignore):
+#   models/model_metadata.json  - the operating contract, human-readable
+#   reports/figures/*.png       - referenced by the README
+#   reports/*.md                - generated reports
+#   reports/run_results.json    - the source model_report.md is generated from

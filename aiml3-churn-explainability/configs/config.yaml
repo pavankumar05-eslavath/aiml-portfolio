@@ -1,0 +1,104 @@
+# Configuration for the churn prediction system.
+# Every value that affects a result lives here, so a run is defined by this file
+# plus a seed. Nothing below is tuned against the test set.
+
+project:
+  name: customer-churn-explainable-ml
+  seed: 42
+
+data:
+  # Relative to the project root; resolved by src/config.py (no hardcoded paths).
+  raw_file: data/raw/telco_churn.csv
+  sample_file: data/raw/telco_churn_sample.csv
+  processed_dir: data/processed
+  source_url: https://raw.githubusercontent.com/IBM/telco-customer-churn-on-icp4d/master/data/Telco-Customer-Churn.csv
+  expected_rows: 7043
+  target: Churn
+  positive_label: "Yes"
+  id_column: customerID
+
+split:
+  test_size: 0.2
+  # Stratified on the target. NOTE: this dataset is a single snapshot with no
+  # timestamps, so an out-of-time split is impossible. See README limitations.
+  stratify: true
+  cv_folds: 5
+
+# ---------------------------------------------------------------------------
+# Retention economics.
+#
+# THESE ARE ASSUMPTIONS, NOT MEASURED BUSINESS RESULTS.
+# The dataset contains no campaign data, no contact costs and no intervention
+# outcomes, so none of these can be estimated from it. They are declared here as
+# explicit, overridable inputs, and every currency figure this project reports is
+# conditional on them. src/evaluation/threshold.py runs a sensitivity analysis
+# because the ranking of thresholds depends on them.
+#
+# Units are "currency units" (CU), deliberately not labelled as dollars.
+# ---------------------------------------------------------------------------
+economics:
+  contact_cost: 5.0          # cost of one outreach attempt, per customer contacted
+  incentive_cost: 30.0       # retention offer, paid to every customer contacted
+  success_rate: 0.30         # P(a would-be churner is retained | contacted)
+  horizon_months: 12         # months of revenue counted as the value at risk
+  # Customer value = MonthlyCharges * horizon_months. Chosen because MonthlyCharges
+  # is the only revenue rate in the data; it ignores margin, discounting and
+  # upsell, so it is a proxy for revenue at risk, not profit.
+  value_column: MonthlyCharges
+
+  sensitivity:
+    success_rate: [0.10, 0.20, 0.30, 0.40, 0.50]
+    incentive_cost: [10.0, 30.0, 60.0]
+
+# Risk bands over CALIBRATED churn probability. Cut points are round numbers
+# chosen for operational legibility, then validated against realised churn rate
+# per band on the test set (see reports/model_report.md).
+risk_segments:
+  low:      [0.00, 0.10]
+  medium:   [0.10, 0.35]
+  high:     [0.35, 0.65]
+  critical: [0.65, 1.01]
+
+# Customer value split for the decision matrix, as a quantile of value_column
+# within the scored population.
+decision:
+  high_value_quantile: 0.70
+
+models:
+  # Hyperparameter search spaces. Kept small and explicit so a run is fast and
+  # reproducible; RandomizedSearchCV samples n_iter from these.
+  n_iter: 30
+  scoring: average_precision   # PR-AUC: the positive class is the one we act on
+  logistic_regression:
+    C: [0.01, 0.1, 0.5, 1.0, 2.0, 5.0]
+    class_weight: [null, balanced]
+  random_forest:
+    n_estimators: [300, 500]
+    max_depth: [6, 10, 16, null]
+    min_samples_leaf: [1, 5, 15, 30]
+    max_features: [sqrt, 0.3, 0.6]
+    class_weight: [null, balanced, balanced_subsample]
+  xgboost:
+    n_estimators: [300, 600]
+    max_depth: [3, 4, 6, 8]
+    learning_rate: [0.02, 0.05, 0.1]
+    subsample: [0.7, 0.85, 1.0]
+    colsample_bytree: [0.6, 0.8, 1.0]
+    min_child_weight: [1, 5, 10]
+    reg_lambda: [0.5, 1.0, 5.0]
+
+calibration:
+  # Fitted with internal CV on TRAIN only, then judged on the untouched test set.
+  methods: [sigmoid, isotonic]
+  cv_folds: 5
+  # Parsimony guard, set before seeing results: adopt a calibrator only if it
+  # improves the Brier score by at least this much. A gradient booster trained on
+  # logloss is often already calibrated, and shipping a calibrator for a ~0.0002
+  # gain adds a maintained component and a layer between SHAP and the served
+  # probability for no measurable benefit.
+  min_brier_gain: 0.001
+
+paths:
+  models_dir: models
+  reports_dir: reports
+  figures_dir: reports/figures

@@ -1,0 +1,25 @@
+# Datasets are fetched or generated, never committed.
+# `make download` gets the real file; `make sample` builds the stand-in.
+data/raw/*.csv
+data/processed/*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+
+# Kept deliberately (do NOT ignore):
+#   models/churn_model.joblib      - 120 KB, lets a reviewer run inference on clone
+#   models/model_metadata.json     - the operating contract, human-readable
+#   reports/figures/*.png          - referenced by the README
+#   reports/run_results.json       - the source model_report.md is generated from

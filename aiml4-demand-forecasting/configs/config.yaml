@@ -1,0 +1,126 @@
+# Configuration for the demand forecasting & inventory optimization system.
+# A run is defined by this file plus the seed. Nothing below is tuned on the test set.
+
+project:
+  name: demand-forecasting-inventory-optimization
+  seed: 42
+
+data:
+  # Public mirror of the MOFC/Kaggle M5 Forecasting-Accuracy dataset, in long format.
+  source_base: https://m5-benchmarks.s3.amazonaws.com/data
+  files:
+    train_target: train/target.parquet      # unit sales per series per day
+    train_static: train/static.parquet      # series -> sku/dept/cat/store/state
+    train_temporal: train/temporal.parquet  # sell_price + SNAP flags (covers test window)
+    test_target: test/target.parquet        # the official held-out 28 days
+  raw_dir: data/raw
+  processed_dir: data/processed
+  sample_file: data/raw/m5_sample_panel.parquet
+
+  # ---- forecasting grain ----
+  # One row = one SKU, in one store, on one day. `item_id` in the source IS the
+  # SKU x store series key; `sku_id` is the product and `store_id` the location.
+  grain: [sku_id, store_id, date]
+  series_key: series_id
+  target: demand
+  freq: D
+
+  # ---- subset selection ----
+  # 30,490 series x 1,941 days = 46.8M rows. Requirement: do NOT blindly fit
+  # expensive models on every SKU. The subset is stratified and seeded so it spans
+  # every category and every demand segment rather than skimming the top sellers,
+  # which would quietly remove the intermittency the project is about.
+  subset:
+    stores: [CA_1, TX_1, WI_1]     # one per state, so SNAP (state-level) varies
+    n_skus: 200                    # stratified over cat_id x demand segment
+    min_series_days: 730           # need >= 2 years to judge annual seasonality
+
+split:
+  # The official M5 evaluation window. Exogenous features (price, SNAP) are
+  # available here, so it can be used as a true holdout.
+  test_start: "2016-05-23"
+  test_end: "2016-06-19"
+  # Rolling-origin validation inside the training period.
+  validation:
+    n_folds: 4
+    horizon_days: 28
+    step_days: 28          # consecutive, non-overlapping validation windows
+    scheme: expanding      # expanding | sliding
+    sliding_train_days: 730
+
+features:
+  lags: [1, 7, 14, 28]
+  rolling_windows: [7, 14, 28]
+  # Price/promo for the TARGET date are treated as known at forecast time. This is
+  # an assumption about the business process, not a fact about the data: retailers
+  # normally set price and promo calendars in advance. It is stated in the README
+  # and is the one place where "future" information legitimately enters.
+  assume_known_future: [sell_price, snap, calendar]
+
+horizons: [1, 7, 14, 28]
+
+models:
+  # Global models: one model across all series, with series identity as features.
+  # Per-series classical models are fitted only on a sample (see n_classical_series)
+  # because ETS/SARIMA cost scales with the number of series, not rows.
+  n_classical_series: 30
+  lightgbm:
+    objective: tweedie          # count-like, zero-inflated demand
+    tweedie_variance_power: 1.1
+    n_estimators: 600
+    learning_rate: 0.05
+    num_leaves: 63
+    min_child_samples: 50
+    subsample: 0.9
+    subsample_freq: 1
+    colsample_bytree: 0.8
+    reg_lambda: 1.0
+    n_jobs: -1
+  random_forest:
+    # Deliberately modest: a deep 200-tree forest on ~500k rows x 50 features took
+    # ~4 minutes per fold and did not beat LightGBM. It is kept as a structurally
+    # different comparator, not as a serious contender, so it is sized for cost.
+    n_estimators: 120
+    max_depth: 12
+    min_samples_leaf: 50
+    n_jobs: -1
+  quantiles: [0.1, 0.5, 0.9]
+
+# ---------------------------------------------------------------------------
+# Inventory economics.
+#
+# THESE ARE ASSUMPTIONS, NOT DATASET VALUES.
+# M5 contains sell_price but no cost of goods, no holding rate, no ordering cost
+# and no stockout penalty. Unit value is derived from the observed sell_price;
+# everything else below is declared. Every currency figure the project reports is
+# conditional on these and is labelled in currency units (CU).
+# ---------------------------------------------------------------------------
+inventory:
+  lead_time_days: 7
+  review_period_days: 7          # periodic review; order once a week
+  service_levels: [0.90, 0.95, 0.99]
+  default_service_level: 0.95
+
+  economics:
+    # Unit value comes from the data (mean sell_price per SKU). Margin and rates
+    # below are assumptions.
+    gross_margin: 0.25           # fraction of sell_price that is profit
+    holding_rate_annual: 0.25    # annual carrying cost as a fraction of unit value
+    # Cost per SKU-line on a replenishment order, NOT per purchase order. A real
+    # purchase order covers hundreds of lines and its fixed cost is shared; charging
+    # a full PO cost to every SKU made ordering ~92% of total cost and flattened the
+    # service-level trade-off, which is an artefact of the assumption rather than a
+    # finding about inventory.
+    ordering_cost_per_order: 2.0
+    # Stockout penalty = lost margin x this multiplier. >1 represents goodwill /
+    # substitution loss beyond the immediate lost sale.
+    stockout_penalty_multiplier: 2.0
+
+  sensitivity:
+    stockout_penalty_multiplier: [1.0, 2.0, 4.0]
+    lead_time_days: [3, 7, 14]
+
+paths:
+  models_dir: models
+  reports_dir: reports
+  figures_dir: reports/figures
