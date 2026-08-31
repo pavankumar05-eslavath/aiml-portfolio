@@ -1,0 +1,59 @@
+name: AIML-1 Payment Fraud Detection
+
+on:
+  push:
+    branches: [main]
+    paths: ['aiml1-payment-fraud-detection/**', '.github/workflows/aiml1-ci.yml']
+  pull_request:
+    paths: ['aiml1-payment-fraud-detection/**', '.github/workflows/aiml1-ci.yml']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: aiml1-payment-fraud-detection
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: aiml1-payment-fraud-detection/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint
+        run: |
+          pip install ruff
+          ruff check data src tests
+
+      # The suite carries the leakage guards, which are the point of this project.
+      # It pins that a three-clause rule beats the models (so the ~0.999 headline
+      # is an artefact of PaySim's fraud script, not model quality), that raw
+      # `step` never re-enters the feature matrix, that the temporal split stays
+      # disjoint and ordered, and that XGBoost still resolves base_score to the
+      # class prior -- the regression that makes the tutorial's published
+      # XGBoost figure unreproducible.
+      - name: Tests
+        run: pytest tests -q
+
+      # Runs against the generated stand-in; the real 480 MB PaySim CSV is not
+      # downloaded in CI. Figures in INSIGHTS.md come from the real file.
+      - name: Run every stage
+        run: make all
+
+      - name: Upload outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiml1-outputs
+          path: aiml1-payment-fraud-detection/outputs/
+          retention-days: 14
+          if-no-files-found: ignore

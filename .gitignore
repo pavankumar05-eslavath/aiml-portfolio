@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv
+.venv/
+venv/
+.env
+.DS_Store
+.ipynb_checkpoints/
+
+# PaySim CSV is 480 MB; fetch it with `make download`
+*.csv
+outputs/
