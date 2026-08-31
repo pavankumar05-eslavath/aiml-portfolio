@@ -1,0 +1,68 @@
+name: AIML-3 Customer Churn Explainable ML
+
+on:
+  push:
+    branches: [main]
+    paths: ['aiml3-customer-churn-explainable-ml/**', '.github/workflows/aiml3-ci.yml']
+  pull_request:
+    paths: ['aiml3-customer-churn-explainable-ml/**', '.github/workflows/aiml3-ci.yml']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: aiml3-customer-churn-explainable-ml
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: aiml3-customer-churn-explainable-ml/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint
+        run: |
+          pip install ruff
+          ruff check src tests tools
+
+      # The suite carries the project's claims, not just its plumbing. It pins that
+      # the group-aware split leaves ZERO feature-identical rows across the
+      # train/test boundary (deduplication alone left 5), that label-conflicting
+      # groups are flagged whole rather than one row per group, that feature
+      # engineering is stateless so it is safe to compute before the split, that a
+      # single row scores identically to the batch (train/serve skew), that the
+      # break-even probability satisfies the EV definition exactly, and that the
+      # risk bands track realised churn monotonically. Real-data claims -- churn
+      # rate 26.54%, 42 label conflicts, no single-feature leakage -- are skipped
+      # when running on the synthetic stand-in.
+      - name: Tests
+        run: pytest tests -q
+
+      # Fetch the real dataset if reachable; fall back to the schema-and-defect
+      # faithful synthetic file so CI is not gated on an external mirror. The CSVs
+      # are gitignored either way.
+      - name: Get data
+        run: make data
+
+      - name: Run every stage
+        run: make all
+
+      - name: Upload reports and figures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiml3-reports
+          path: |
+            aiml3-customer-churn-explainable-ml/reports/
+            aiml3-customer-churn-explainable-ml/models/model_metadata.json
+          retention-days: 14
+          if-no-files-found: ignore
