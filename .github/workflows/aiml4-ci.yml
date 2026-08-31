@@ -1,0 +1,85 @@
+name: AIML-4 Demand Forecasting & Inventory
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'aiml4-demand-forecasting-inventory-optimization/**'
+      - '.github/workflows/aiml4-ci.yml'
+  pull_request:
+    paths:
+      - 'aiml4-demand-forecasting-inventory-optimization/**'
+      - '.github/workflows/aiml4-ci.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: aiml4-demand-forecasting-inventory-optimization
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: aiml4-demand-forecasting-inventory-optimization/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint
+        run: |
+          pip install ruff
+          ruff check src tests tools app
+
+      # MUST run before the tests. The suite's autouse fixture generates the
+      # synthetic panel when nothing is on disk, so if this ran second it would
+      # find that file and CI would never exercise the real dataset -- or the
+      # requires_real_data claim tests.
+      #
+      # The M5 mirror is ~133 MB; if it is unreachable the synthetic panel is used
+      # instead so CI is not gated on an external host.
+      - name: Get data
+        run: make data
+
+      # The suite carries the project's methodological guarantees, not just its
+      # plumbing. It pins that features cannot see the future (by mutating all
+      # post-origin actuals and asserting nothing changes), that the leakage probe
+      # itself CAN fail when the classic target-date rolling mean is injected, that
+      # a training origin can never reach into the fold's evaluation window, that
+      # validation folds are chronological and disjoint from the test window, that
+      # Croston is not numerically a moving average, that safety stock is zero when
+      # the forecast is perfect (i.e. it is sized from forecast error, not demand
+      # variability), that the protection window includes the review period, and
+      # that a higher reorder point can never increase shortfall.
+      - name: Tests
+        run: pytest tests -q
+
+      # Cheap stages only. `make train` refits every model on every fold and takes
+      # ~15 minutes on the real panel; the reported metrics come from a local run
+      # and are committed in reports/.
+      - name: Audit, EDA and baselines
+        run: |
+          python -m src.run audit
+          python -m src.run eda
+          python -m src.run baselines
+
+      - name: Build notebooks
+        run: python tools/build_notebooks.py
+
+      - name: Upload reports and figures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiml4-reports
+          path: |
+            aiml4-demand-forecasting-inventory-optimization/reports/
+            aiml4-demand-forecasting-inventory-optimization/models/model_metadata.json
+          retention-days: 14
+          if-no-files-found: ignore
