@@ -1,0 +1,678 @@
+{
+  "$schema_note": "Relevance is a predicate over product attributes, resolved against the live catalogue at evaluation time. See docs/evaluation.md for the methodology and its limitations.",
+  "version": "1.0",
+  "catalogue": {
+    "built_with": "python scripts/download_dataset.py --limit 6000 --out data/eval",
+    "note": "Queries were written against a 6,000-product stratified sample. They also run on the 1,000-product data/sample catalogue, where smaller relevant sets make the numbers noisier; queries with fewer than 2 relevant products are reported as skipped rather than scored."
+  },
+  "relevance_policy": {
+    "text": "Article type AND the attribute the query names (colour / gender / usage).",
+    "image": "Same article type as the query product, which is what visual similarity should recover. Colour is deliberately NOT required, so this measures category recognition rather than colour fidelity.",
+    "multimodal": "Same article type as the query image AND the colour named in the text. The query image is always a DIFFERENT colour from the target, so the text must do real work: a system ignoring the text scores near zero.",
+    "multimodal_groups": {
+      "contradiction": "Text names an attribute the query image does NOT have (white shoe + 'but in black'); relevance requires the attribute from the TEXT. A system ignoring the text scores near zero. Favours text-heavy weighting.",
+      "agreement": "Text reinforces what the image already shows; relevance requires the shared attributes. Favours image-heavy weighting. Both groups are reported separately because a single average over them would make any recommended weight an artefact of the query mix."
+    }
+  },
+  "queries": [
+    {
+      "id": "t01",
+      "type": "text",
+      "query": "white trainers for running",
+      "relevance": {
+        "subcategories": [
+          "Sports Shoes"
+        ],
+        "colours": [
+          "White"
+        ]
+      }
+    },
+    {
+      "id": "t02",
+      "type": "text",
+      "query": "smart black leather shoes to wear to the office",
+      "relevance": {
+        "subcategories": [
+          "Formal Shoes"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "t03",
+      "type": "text",
+      "query": "blue denim trousers for men",
+      "relevance": {
+        "subcategories": [
+          "Jeans"
+        ],
+        "colours": [
+          "Blue"
+        ],
+        "genders": [
+          "Men"
+        ]
+      }
+    },
+    {
+      "id": "t04",
+      "type": "text",
+      "query": "dark glasses to keep the sun out of my eyes",
+      "relevance": {
+        "subcategories": [
+          "Sunglasses"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "t05",
+      "type": "text",
+      "query": "a black wristwatch with a round face",
+      "relevance": {
+        "subcategories": [
+          "Watches"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "t06",
+      "type": "text",
+      "query": "roomy black rucksack for carrying books around",
+      "relevance": {
+        "subcategories": [
+          "Backpacks"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "t07",
+      "type": "text",
+      "query": "black high heeled shoes for an evening out",
+      "relevance": {
+        "subcategories": [
+          "Heels"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "t08",
+      "type": "text",
+      "query": "brown leather billfold to keep cards in",
+      "relevance": {
+        "subcategories": [
+          "Wallets"
+        ],
+        "colours": [
+          "Brown"
+        ]
+      }
+    },
+    {
+      "id": "t09",
+      "type": "text",
+      "query": "silver band to wear on a finger",
+      "relevance": {
+        "subcategories": [
+          "Ring"
+        ],
+        "colours": [
+          "Silver"
+        ]
+      }
+    },
+    {
+      "id": "t10",
+      "type": "text",
+      "query": "plain black strap to hold up trousers",
+      "relevance": {
+        "subcategories": [
+          "Belts"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "t11",
+      "type": "text",
+      "query": "open brown summer footwear for men",
+      "relevance": {
+        "subcategories": [
+          "Sandals"
+        ],
+        "colours": [
+          "Brown"
+        ],
+        "genders": [
+          "Men"
+        ]
+      }
+    },
+    {
+      "id": "t12",
+      "type": "text",
+      "query": "pink varnish to paint fingernails",
+      "relevance": {
+        "subcategories": [
+          "Nail Polish"
+        ],
+        "colours": [
+          "Pink"
+        ]
+      }
+    },
+    {
+      "id": "t13",
+      "type": "text",
+      "query": "loose black bottoms to wear at the gym",
+      "relevance": {
+        "subcategories": [
+          "Track Pants"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "t14",
+      "type": "text",
+      "query": "gold bangles to wear on the wrist",
+      "relevance": {
+        "subcategories": [
+          "Bangle"
+        ],
+        "colours": [
+          "Gold"
+        ]
+      }
+    },
+    {
+      "id": "t15",
+      "type": "text",
+      "query": "warm black coat for cold weather",
+      "relevance": {
+        "subcategories": [
+          "Jackets"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "t16",
+      "type": "text",
+      "query": "blue collared shirt for men",
+      "relevance": {
+        "subcategories": [
+          "Shirts"
+        ],
+        "colours": [
+          "Blue"
+        ],
+        "genders": [
+          "Men"
+        ]
+      }
+    },
+    {
+      "id": "i01",
+      "type": "image",
+      "image_external_id": "39683",
+      "note": "Lotto Men White Sports Shoe",
+      "relevance": {
+        "subcategories": [
+          "Sports Shoes"
+        ]
+      }
+    },
+    {
+      "id": "i02",
+      "type": "image",
+      "image_external_id": "12516",
+      "note": "Red Tape Men Formal Black Formal Shoes",
+      "relevance": {
+        "subcategories": [
+          "Formal Shoes"
+        ]
+      }
+    },
+    {
+      "id": "i03",
+      "type": "image",
+      "image_external_id": "27690",
+      "note": "Murcia Women Black Handbag",
+      "relevance": {
+        "subcategories": [
+          "Handbags"
+        ]
+      }
+    },
+    {
+      "id": "i04",
+      "type": "image",
+      "image_external_id": "33873",
+      "note": "Citizen Men Black Dial Chronograph Watch",
+      "relevance": {
+        "subcategories": [
+          "Watches"
+        ]
+      }
+    },
+    {
+      "id": "i05",
+      "type": "image",
+      "image_external_id": "11283",
+      "note": "Wrangler Men Blue Texas Jeans",
+      "relevance": {
+        "subcategories": [
+          "Jeans"
+        ]
+      }
+    },
+    {
+      "id": "i06",
+      "type": "image",
+      "image_external_id": "28392",
+      "note": "Idee Women Casual Black Sunglasses",
+      "relevance": {
+        "subcategories": [
+          "Sunglasses"
+        ]
+      }
+    },
+    {
+      "id": "i07",
+      "type": "image",
+      "image_external_id": "38129",
+      "note": "Wildcraft Unisex Black & Green Printed Backpack",
+      "relevance": {
+        "subcategories": [
+          "Backpacks"
+        ]
+      }
+    },
+    {
+      "id": "i08",
+      "type": "image",
+      "image_external_id": "13028",
+      "note": "Inc 5 Women Casual Black Heels",
+      "relevance": {
+        "subcategories": [
+          "Heels"
+        ]
+      }
+    },
+    {
+      "id": "i09",
+      "type": "image",
+      "image_external_id": "56413",
+      "note": "GAS Men Brown Glade Sandals",
+      "relevance": {
+        "subcategories": [
+          "Sandals"
+        ]
+      }
+    },
+    {
+      "id": "i10",
+      "type": "image",
+      "image_external_id": "13417",
+      "note": "United Colors of Benetton Men Solid Blue Shirt",
+      "relevance": {
+        "subcategories": [
+          "Shirts"
+        ]
+      }
+    },
+    {
+      "id": "m01",
+      "type": "multimodal",
+      "image_external_id": "39683",
+      "query": "the same kind of shoe but in black",
+      "note": "query image is a WHITE sports shoe; target is black sports shoes",
+      "relevance": {
+        "subcategories": [
+          "Sports Shoes"
+        ],
+        "colours": [
+          "Black"
+        ]
+      },
+      "group": "contradiction"
+    },
+    {
+      "id": "m02",
+      "type": "multimodal",
+      "image_external_id": "12516",
+      "query": "like this but in brown leather",
+      "note": "query image is a BLACK formal shoe; target is brown formal shoes",
+      "relevance": {
+        "subcategories": [
+          "Formal Shoes"
+        ],
+        "colours": [
+          "Brown"
+        ]
+      },
+      "group": "contradiction"
+    },
+    {
+      "id": "m03",
+      "type": "multimodal",
+      "image_external_id": "27690",
+      "query": "a similar bag in brown",
+      "note": "query image is a BLACK handbag; target is brown handbags",
+      "relevance": {
+        "subcategories": [
+          "Handbags"
+        ],
+        "colours": [
+          "Brown"
+        ]
+      },
+      "group": "contradiction"
+    },
+    {
+      "id": "m04",
+      "type": "multimodal",
+      "image_external_id": "33873",
+      "query": "the same style of watch but silver",
+      "note": "query image is a BLACK watch; target is silver watches",
+      "relevance": {
+        "subcategories": [
+          "Watches"
+        ],
+        "colours": [
+          "Silver"
+        ]
+      },
+      "group": "contradiction"
+    },
+    {
+      "id": "m05",
+      "type": "multimodal",
+      "image_external_id": "28392",
+      "query": "these but with brown frames",
+      "note": "query image is BLACK sunglasses; target is brown sunglasses",
+      "relevance": {
+        "subcategories": [
+          "Sunglasses"
+        ],
+        "colours": [
+          "Brown"
+        ]
+      },
+      "group": "contradiction"
+    },
+    {
+      "id": "m06",
+      "type": "multimodal",
+      "image_external_id": "56413",
+      "query": "the same sandals in black",
+      "note": "query image is BROWN sandals; target is black sandals",
+      "relevance": {
+        "subcategories": [
+          "Sandals"
+        ],
+        "colours": [
+          "Black"
+        ]
+      },
+      "group": "contradiction"
+    },
+    {
+      "id": "m07",
+      "type": "multimodal",
+      "image_external_id": "13417",
+      "query": "this shirt in white instead",
+      "note": "query image is a BLUE shirt; target is white shirts",
+      "relevance": {
+        "subcategories": [
+          "Shirts"
+        ],
+        "colours": [
+          "White"
+        ]
+      },
+      "group": "contradiction"
+    },
+    {
+      "id": "m08",
+      "type": "multimodal",
+      "image_external_id": "14291",
+      "query": "a black version of this t-shirt",
+      "note": "query image is a BLUE tshirt; target is black tshirts",
+      "relevance": {
+        "subcategories": [
+          "Tshirts"
+        ],
+        "colours": [
+          "Black"
+        ]
+      },
+      "group": "contradiction"
+    },
+    {
+      "id": "m09",
+      "type": "multimodal",
+      "image_external_id": "13028",
+      "query": "similar heels but in brown",
+      "note": "query image is BLACK heels; target is brown heels",
+      "relevance": {
+        "subcategories": [
+          "Heels"
+        ],
+        "colours": [
+          "Brown"
+        ]
+      },
+      "group": "contradiction"
+    },
+    {
+      "id": "m10",
+      "type": "multimodal",
+      "image_external_id": "11283",
+      "query": "the same jeans for women",
+      "note": "query image is MEN's blue jeans; target is women's blue jeans",
+      "relevance": {
+        "subcategories": [
+          "Jeans"
+        ],
+        "colours": [
+          "Blue"
+        ],
+        "genders": [
+          "Women"
+        ]
+      },
+      "group": "contradiction"
+    },
+    {
+      "id": "ma01",
+      "type": "multimodal",
+      "group": "agreement",
+      "image_external_id": "39683",
+      "query": "running shoes with a white upper",
+      "note": "white sports shoe + agreeing text",
+      "relevance": {
+        "subcategories": [
+          "Sports Shoes"
+        ],
+        "colours": [
+          "White"
+        ]
+      }
+    },
+    {
+      "id": "ma02",
+      "type": "multimodal",
+      "group": "agreement",
+      "image_external_id": "12516",
+      "query": "black leather formal shoes for the office",
+      "note": "black formal shoe + agreeing text",
+      "relevance": {
+        "subcategories": [
+          "Formal Shoes"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "ma03",
+      "type": "multimodal",
+      "group": "agreement",
+      "image_external_id": "27690",
+      "query": "a black handbag for everyday use",
+      "note": "black handbag + agreeing text",
+      "relevance": {
+        "subcategories": [
+          "Handbags"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "ma04",
+      "type": "multimodal",
+      "group": "agreement",
+      "image_external_id": "33873",
+      "query": "a black wristwatch",
+      "note": "black watch + agreeing text",
+      "relevance": {
+        "subcategories": [
+          "Watches"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "ma05",
+      "type": "multimodal",
+      "group": "agreement",
+      "image_external_id": "28392",
+      "query": "dark sunglasses",
+      "note": "black sunglasses + agreeing text",
+      "relevance": {
+        "subcategories": [
+          "Sunglasses"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "ma06",
+      "type": "multimodal",
+      "group": "agreement",
+      "image_external_id": "38129",
+      "query": "a black backpack for daily use",
+      "note": "black backpack + agreeing text",
+      "relevance": {
+        "subcategories": [
+          "Backpacks"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "ma07",
+      "type": "multimodal",
+      "group": "agreement",
+      "image_external_id": "13028",
+      "query": "black high heeled shoes",
+      "note": "black heels + agreeing text",
+      "relevance": {
+        "subcategories": [
+          "Heels"
+        ],
+        "colours": [
+          "Black"
+        ]
+      }
+    },
+    {
+      "id": "ma08",
+      "type": "multimodal",
+      "group": "agreement",
+      "image_external_id": "56413",
+      "query": "brown sandals for men",
+      "note": "brown sandals + agreeing text",
+      "relevance": {
+        "subcategories": [
+          "Sandals"
+        ],
+        "colours": [
+          "Brown"
+        ],
+        "genders": [
+          "Men"
+        ]
+      }
+    },
+    {
+      "id": "ma09",
+      "type": "multimodal",
+      "group": "agreement",
+      "image_external_id": "11283",
+      "query": "blue denim jeans for men",
+      "note": "blue jeans + agreeing text",
+      "relevance": {
+        "subcategories": [
+          "Jeans"
+        ],
+        "colours": [
+          "Blue"
+        ],
+        "genders": [
+          "Men"
+        ]
+      }
+    },
+    {
+      "id": "ma10",
+      "type": "multimodal",
+      "group": "agreement",
+      "image_external_id": "13417",
+      "query": "a blue shirt for men",
+      "note": "blue shirt + agreeing text",
+      "relevance": {
+        "subcategories": [
+          "Shirts"
+        ],
+        "colours": [
+          "Blue"
+        ],
+        "genders": [
+          "Men"
+        ]
+      }
+    }
+  ]
+}

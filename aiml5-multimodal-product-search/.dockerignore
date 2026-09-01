@@ -1,0 +1,11 @@
+# Root context (used only for bind mounts, but keep it tidy).
+.git/
+.venv/
+node_modules/
+__pycache__/
+data/raw/
+data/full/
+data/eval/
+data/local/
+*.parquet
+.env

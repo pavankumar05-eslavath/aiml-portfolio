@@ -1,0 +1,26 @@
+# Project-root requirements, so the portfolio-wide `pip install -r requirements.txt`
+# works from this directory like it does for every other project here.
+#
+# The application's own dependency list lives in backend/requirements.txt; this file
+# adds torch on top of it, because torch is the one dependency whose correct wheel
+# depends on the platform:
+#
+#   * On Linux, PyPI ships the CUDA build (~2.5 GB of nvidia libraries this project
+#     never loads). The `+cpu` local version exists only on PyTorch's own index, so
+#     pinning it forces the ~200 MB CPU wheel.
+#   * On macOS and Windows the PyPI wheel is already CPU-only and no `+cpu` variant
+#     is published, so the plain pin is correct there.
+#
+# torchvision is required for the fast (torchvision-backed) image processors in
+# transformers; without it preprocessing falls back to a slower path.
+#
+# For a GPU install, skip this file and see the note in backend/requirements.txt.
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch==2.8.0+cpu ; sys_platform == 'linux'
+torchvision==0.23.0+cpu ; sys_platform == 'linux'
+torch==2.8.0 ; sys_platform != 'linux'
+torchvision==0.23.0 ; sys_platform != 'linux'
+
+-r backend/requirements.txt
