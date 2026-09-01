@@ -40,7 +40,7 @@ pillow==11.3.0
 numpy==2.3.4
 
 # --- data pipeline ---------------------------------------------------------
-huggingface-hub==0.36.0      # dataset download
+huggingface-hub==0.36.2      # dataset download
 pyarrow==25.0.1              # streaming Parquet reads
 tqdm==4.70.0
 

@@ -272,6 +272,7 @@ generalises.
 | 15 | AIML-5 | A bare `models/` ignore pattern | Silently excluded `backend/app/models/` — the **entire ORM package** — from the repository |
 | 16 | AIML-5 | `Path.is_symlink()` called **after** `.resolve()` | Always `False`; a security check that looked meaningful and guaranteed nothing |
 | 17 | AIML-5 | The sample fetcher downloaded **one of two** dataset shards | Half the catalogue arrived with no image and indexed as text-only; found by cloning the repo and following my own README |
+| 18 | AIML-5 | `requirements-dev.txt` pinned `pytest-cov==8.0.0`, **a version that has never existed** | Every local run passed: the virtualenv was populated before the pin was written, so the file was never the thing installed from. The first clean install — CI — failed outright |
 
 Bugs 2, 3, 10 and 13 share a shape worth internalising: **the code ran, produced plausible
 numbers, and was wrong.** Only a total, an inverse, a table that failed to vary, or a coverage
@@ -281,6 +282,11 @@ Bugs 12 and 17 share a different shape: **the mistake was in the measurement, no
 system.** An unfair benchmark and a half-downloaded dataset both produce output that looks
 entirely reasonable. Neither was found by reading the code — one by asking whether the
 comparison was fair, the other by cloning the repository and following the README verbatim.
+
+Bugs 17 and 18 share a third: **the declared environment was never the tested environment.**
+A working directory accumulates state that its own setup files could not reproduce, so the
+instructions rot while every local run keeps passing. Both were caught only by starting from
+nothing — a fresh clone and a fresh interpreter. That is the argument for CI stated as a bug.
 
 ---
 
