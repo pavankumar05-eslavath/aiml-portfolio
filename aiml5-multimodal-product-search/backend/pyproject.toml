@@ -1,0 +1,124 @@
+[project]
+name = "multimodal-product-search"
+version = "1.0.0"
+description = "Multimodal (image + text) semantic product search over a fashion catalogue."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+readme = "../README.md"
+
+# Dependencies are declared in requirements.txt / requirements-dev.txt rather than
+# here: torch must be installed from a platform-specific index first (see the
+# comment at the top of requirements.txt), which a single dependency list cannot
+# express portably.
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = [
+  "--strict-markers",
+  "--strict-config",
+  "-ra",
+  "--tb=short",
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+  "slow: tests that load the real embedding model (deselect with '-m \"not slow\"')",
+]
+filterwarnings = [
+  "error",
+  # Embedded Qdrant warns that payload indexes are inert in local mode. This is
+  # expected on the no-container profile and is documented in docs/architecture.md.
+  "ignore:Payload indexes have no effect in the local Qdrant.*:UserWarning",
+  # Emitted from inside third-party libraries; not actionable here.
+  "ignore::DeprecationWarning:qdrant_client.*",
+  "ignore::DeprecationWarning:websockets.*",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/data/fashion_dataset.py"]  # exercised by the pipeline scripts, not unit tests
+# SQLAlchemy's asyncio support runs the DBAPI inside greenlets, and inference is
+# offloaded to worker threads. Without declaring both, coverage loses its trace
+# across a greenlet switch and under-reports every line *after* an `await` that
+# touches the database - which looks alarmingly like untested code but is not.
+concurrency = ["thread", "greenlet"]
+
+[tool.coverage.report]
+skip_empty = true
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "\\.\\.\\.",
+  "if __name__ == .__main__.:",
+]
+
+[tool.ruff]
+line-length = 96
+target-version = "py311"
+src = ["."]
+extend-exclude = [".venv", "alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W",    # pycodestyle
+  "F",         # pyflakes
+  "I",         # import sorting
+  "N",         # pep8-naming
+  "UP",        # pyupgrade
+  "B",         # bugbear
+  "C4",        # comprehensions
+  "SIM",       # simplify
+  "RUF",       # ruff-specific
+  "ASYNC",     # async correctness
+  "S",         # bandit security
+  "DTZ",       # timezone-aware datetimes
+  "PTH",       # prefer pathlib
+  "RET",       # return simplification
+  "TRY",       # exception anti-patterns
+  "D",         # docstrings
+]
+ignore = [
+  "D105",    # magic methods need no docstring
+  "D107",    # __init__ documented on the class instead
+  "D203",    # conflicts with D211
+  "D213",    # conflicts with D212
+  "TRY003",  # long messages inline are clearer than a wrapper exception per case
+  "TRY300",  # `return` inside `try` is often the clearest form
+  "B008",    # FastAPI's Depends()/File() defaults are the framework's idiom
+  "E501",    # line length is enforced by the formatter
+  "SIM108",  # ternaries are not always more readable
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+  "D100", "D101", "D102", "D103", "D104",  # tests document themselves by name
+  "S101",   # assert is the point
+  "S105", "S106",  # hardcoded test credentials/values
+  "PTH123", # open() is fine in tests
+]
+"app/models/*" = ["D101"]  # column definitions are self-describing
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.File", "fastapi.Form", "fastapi.Body"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.11"
+files = ["app"]
+strict = true
+warn_unreachable = true
+show_error_codes = true
+pretty = true
+# Third-party packages without bundled type information.
+[[tool.mypy.overrides]]
+module = ["transformers.*", "qdrant_client.*", "huggingface_hub.*", "pyarrow.*"]
+ignore_missing_imports = true

@@ -1,0 +1,18 @@
+{
+  "model": "openai/clip-vit-base-patch32",
+  "embedding_dim": 512,
+  "device": "cpu",
+  "products_probed": 48,
+  "templated": {
+    "cross_modal_top1": 0.8125,
+    "matched_pair_similarity": 0.3123798072338104,
+    "mismatched_pair_similarity": 0.17939402163028717,
+    "image_image_similarity": 0.7304624915122986,
+    "text_text_similarity": 0.44994041323661804
+  },
+  "raw_name": {
+    "cross_modal_top1": 0.7708333333333334
+  },
+  "modality_gap": 0.41808268427848816,
+  "aligned": true
+}

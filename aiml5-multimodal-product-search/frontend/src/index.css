@@ -1,0 +1,133 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens.
+ *
+ * Tailwind v4 takes its configuration from CSS, so the palette lives here rather
+ * than in a JS config file. A single slate/indigo scale keeps the UI calm enough
+ * that product photography and similarity scores are what draw the eye.
+ */
+@theme {
+  --color-ink-50: #f6f7f9;
+  --color-ink-100: #eceef2;
+  --color-ink-200: #d5d9e2;
+  --color-ink-300: #b0b8c8;
+  --color-ink-400: #8590a8;
+  --color-ink-500: #66728c;
+  --color-ink-600: #505a73;
+  --color-ink-700: #41495d;
+  --color-ink-800: #383e4e;
+  --color-ink-900: #232733;
+  --color-ink-950: #16181f;
+
+  --color-accent-50: #eef2ff;
+  --color-accent-100: #e0e7ff;
+  --color-accent-200: #c7d2fe;
+  --color-accent-300: #a5b4fc;
+  --color-accent-400: #818cf8;
+  --color-accent-500: #6366f1;
+  --color-accent-600: #4f46e5;
+  --color-accent-700: #4338ca;
+  --color-accent-900: #312e81;
+
+  --font-sans:
+    'Inter var', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  --radius-card: 0.875rem;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-ink-50 text-ink-900 antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Visible focus for keyboard users without adding a ring to mouse clicks. */
+  :focus-visible {
+    @apply outline-accent-500 outline-2 outline-offset-2;
+  }
+
+  ::selection {
+    @apply bg-accent-200 text-ink-900;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white border-ink-200/80 rounded-[--radius-card] border shadow-sm;
+  }
+
+  .label {
+    @apply text-ink-500 text-xs font-semibold tracking-wide uppercase;
+  }
+
+  /* Thin scrollbars inside filter and facet panels. */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ink-300) transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    @apply bg-ink-300 rounded-full;
+  }
+}
+
+@layer utilities {
+  /* Checkerboard behind product images: many catalogue photos are on white, and
+     a plain white tile makes the product edge impossible to see. */
+  .bg-swatch {
+    background-color: #fff;
+    background-image:
+      linear-gradient(45deg, #f1f3f7 25%, transparent 25%),
+      linear-gradient(-45deg, #f1f3f7 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #f1f3f7 75%),
+      linear-gradient(-45deg, transparent 75%, #f1f3f7 75%);
+    background-size: 16px 16px;
+    background-position:
+      0 0,
+      0 8px,
+      8px -8px,
+      -8px 0;
+  }
+
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(
+      90deg,
+      rgb(255 255 255 / 0) 0,
+      rgb(255 255 255 / 0.5) 50%,
+      rgb(255 255 255 / 0) 100%
+    );
+    animation: shimmer 1.6s infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

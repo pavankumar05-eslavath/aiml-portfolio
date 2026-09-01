@@ -1,0 +1,172 @@
+# Multimodal Product Search - full local stack.
+#
+#   docker compose up --build          # postgres + qdrant + backend + frontend
+#   open http://localhost:5173
+#
+# The catalogue is NOT indexed automatically: embedding several thousand products
+# takes minutes, and doing it implicitly on every `up` would be surprising. Run it
+# explicitly once the stack is healthy:
+#
+#   docker compose run --rm indexer
+#
+# First boot downloads ~600 MB of model weights into the `model_cache` volume.
+# Subsequent boots reuse it and start in a couple of seconds.
+
+name: multimodal-product-search
+
+services:
+  # --------------------------------------------------------------- PostgreSQL
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mps}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mps}
+      POSTGRES_DB: ${POSTGRES_DB:-mps}
+      # Deterministic collation, so ORDER BY does not depend on the host locale.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Exposed for psql/inspection. Remove this mapping to keep it internal.
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mps} -d ${POSTGRES_DB:-mps}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # -------------------------------------------------------------------- Qdrant
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__LOG_LEVEL: INFO
+      # Telemetry is on by default upstream; disabled here so a local dev stack
+      # makes no outbound calls of its own.
+      QDRANT__TELEMETRY_DISABLED: "true"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"   # REST API and the built-in dashboard
+      - "6334:6334"                   # gRPC
+    healthcheck:
+      # The Qdrant image ships neither curl nor wget - a `curl -f .../healthz`
+      # healthcheck (the usual copy-paste) would fail forever and the service
+      # would never be reported healthy. It does have bash, so use /dev/tcp.
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/localhost/6333' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # ------------------------------------------------------------------- backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        # Override to build a CUDA image, e.g.
+        #   TORCH_INDEX_URL=https://pypi.org/simple
+        TORCH_INDEX_URL: ${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    environment:
+      APP_ENV: docker
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: json
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-mps}:${POSTGRES_PASSWORD:-mps}@postgres:5432/${POSTGRES_DB:-mps}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-products}
+      MODEL_NAME: ${MODEL_NAME:-openai/clip-vit-base-patch32}
+      MODEL_DEVICE: ${MODEL_DEVICE:-cpu}
+      # Product images live on the host and are mounted read-only below.
+      IMAGE_ROOT: /data
+      # Ranking defaults. These are the measured optima from
+      # scripts/run_experiments.py; see evaluation/results/experiments.md.
+      FUSION_STRATEGY: ${FUSION_STRATEGY:-weighted_sum}
+      SCORE_NORMALIZATION: ${SCORE_NORMALIZATION:-zscore}
+      IMAGE_WEIGHT: ${IMAGE_WEIGHT:-0.2}
+      TEXT_WEIGHT: ${TEXT_WEIGHT:-0.8}
+      CROSS_MODAL_WEIGHT: ${CROSS_MODAL_WEIGHT:-0.3}
+      LEXICAL_WEIGHT: ${LEXICAL_WEIGHT:-0.0}
+      # The browser reaches the API through nginx on the same origin, so no
+      # cross-origin request is made in the compose setup. Kept for direct access
+      # to port 8000 during development.
+      CORS_ORIGINS: http://localhost:5173,http://localhost:4173,http://localhost
+    volumes:
+      # Read-only: the API serves these images but must never write to them.
+      - ./data:/data:ro
+      - model_cache:/models
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+
+  # ------------------------------------------------------------------ frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+
+  # ------------------------------------------------------- indexer (on demand)
+  indexer:
+    # Same image as the backend, different entrypoint: the ingestion CLI drives
+    # the very same service classes the API uses, so there is no second
+    # implementation to keep in step.
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        TORCH_INDEX_URL: ${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}
+    profiles: ["tools"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    environment:
+      APP_ENV: docker
+      LOG_FORMAT: console
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-mps}:${POSTGRES_PASSWORD:-mps}@postgres:5432/${POSTGRES_DB:-mps}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-products}
+      MODEL_NAME: ${MODEL_NAME:-openai/clip-vit-base-patch32}
+      IMAGE_ROOT: /data
+      INGEST_BATCH_SIZE: ${INGEST_BATCH_SIZE:-64}
+    volumes:
+      # Writable here: preparing the sample catalogue downloads images into ./data.
+      - ./data:/data
+      - ./scripts:/scripts:ro
+      - ./evaluation:/evaluation
+      - model_cache:/models
+    working_dir: /app
+    # PYTHONPATH lets the scripts import the app package from /app.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "==> preparing sample catalogue (downloads images if absent)"
+        PYTHONPATH=/app python /scripts/prepare_sample.py
+        echo "==> indexing"
+        PYTHONPATH=/app python /scripts/index_catalog.py --source /data/sample/products.csv "$@"
+    command: []
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  # Hugging Face cache. Without this, every container restart re-downloads the
+  # model weights.
+  model_cache:

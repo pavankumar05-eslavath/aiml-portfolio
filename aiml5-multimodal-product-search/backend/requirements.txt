@@ -1,0 +1,48 @@
+# Runtime dependencies.
+#
+# torch is intentionally NOT pinned here, because the right wheel depends on the
+# target accelerator and installing the default (CUDA) build pulls ~2.5 GB that a
+# CPU deployment never uses. Install it first, then this file:
+#
+#   CPU only (what the Dockerfile and the README use):
+#     pip install torch==2.8.0 torchvision==0.23.0 \
+#       --index-url https://download.pytorch.org/whl/cpu
+#   CUDA 12.x:
+#     pip install torch==2.8.0 torchvision==0.23.0
+#
+#   pip install -r requirements.txt
+#
+# torchvision is required for the fast (torchvision-backed) image processors in
+# transformers; without it, image preprocessing falls back to a slower path.
+
+# --- web framework ---------------------------------------------------------
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+python-multipart==0.0.32     # multipart/form-data image uploads
+
+# --- validation & settings -------------------------------------------------
+pydantic==2.13.5
+pydantic-settings==2.15.0
+
+# --- database --------------------------------------------------------------
+SQLAlchemy[asyncio]==2.0.52
+asyncpg==0.31.0              # PostgreSQL driver (docker compose profile)
+aiosqlite==0.22.1            # SQLite driver (no-container local profile)
+greenlet==3.5.5              # required by SQLAlchemy's async bridge
+alembic==1.19.1              # schema migrations
+
+# --- vector store ----------------------------------------------------------
+qdrant-client==1.15.1        # also provides the embedded local mode
+
+# --- model inference -------------------------------------------------------
+transformers==4.57.1
+pillow==11.3.0
+numpy==2.3.4
+
+# --- data pipeline ---------------------------------------------------------
+huggingface-hub==0.36.0      # dataset download
+pyarrow==25.0.1              # streaming Parquet reads
+tqdm==4.70.0
+
+# --- http client -----------------------------------------------------------
+httpx==0.28.1                # fetching remote product images during ingestion

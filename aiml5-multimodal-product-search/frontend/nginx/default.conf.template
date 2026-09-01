@@ -1,0 +1,109 @@
+# nginx serves the built SPA and reverse-proxies the API, so the browser only ever
+# talks to one origin.
+#
+# This is a *template*: the nginx entrypoint runs `envsubst` over
+# /etc/nginx/templates/*.template at container start, so ${NGINX_LOCAL_RESOLVERS}
+# and ${API_UPSTREAM} below are substituted before nginx reads the config. Only
+# names that exist in the environment are substituted, so nginx's own runtime
+# variables ($host, $request_uri, ...) pass through untouched.
+#
+# Two deliberate choices, both of which were arrived at by observing failures
+# rather than by guessing:
+#
+# 1. proxy_pass uses a *variable* for the upstream host.
+#    nginx resolves a literal upstream host once, at startup, and refuses to start
+#    at all if it cannot ("host not found in upstream"). That would mean nginx
+#    exits whenever it wins the startup race against the API, and that a
+#    recreated API container keeps receiving traffic at its old IP. A variable
+#    defers resolution to request time: nginx starts regardless, serves the SPA,
+#    returns 502 for /api until the API is up, and picks up new addresses
+#    automatically.
+#
+# 2. The resolver address is injected, not hardcoded.
+#    Docker's embedded DNS is on 127.0.0.11, but Podman's is on the network
+#    gateway (e.g. 10.89.0.1) and Kubernetes uses the cluster DNS service.
+#    Hardcoding 127.0.0.11 produced "recv() failed (111: Connection refused)
+#    while resolving" under Podman. NGINX_LOCAL_RESOLVERS is derived from the
+#    container's own /etc/resolv.conf by the base image's entrypoint, so this
+#    works unchanged on all three.
+
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+    resolver_timeout 5s;
+
+    # Uploaded query images can be several MB; nginx's 1 MB default would reject
+    # them before the request ever reached the API's own validation.
+    client_max_body_size 12M;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    # ------------------------------------------------------------- API proxy
+    location /api/ {
+        include /etc/nginx/snippets/security-headers.conf;
+
+        set $api_backend "${API_UPSTREAM}";
+        # $request_uri is the original URI including any query string, so the
+        # /api prefix reaches the backend unchanged (it expects it).
+        proxy_pass http://$api_backend$request_uri;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 10s;
+        # Catalogue indexing is synchronous and can legitimately run for minutes
+        # on a large catalogue; the 60s default would cut it off mid-run.
+        proxy_send_timeout 1800s;
+        proxy_read_timeout 1800s;
+
+        # Stream responses straight through rather than buffering them to disk.
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+
+    # Interactive OpenAPI documentation, served by the backend.
+    location ~ ^/(docs|redoc|openapi\.json) {
+        include /etc/nginx/snippets/security-headers.conf;
+        set $docs_backend "${API_UPSTREAM}";
+        proxy_pass http://$docs_backend$request_uri;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # ---------------------------------------------------------- static assets
+    # Vite emits content-hashed filenames, so these can be cached indefinitely.
+    location /assets/ {
+        include /etc/nginx/snippets/security-headers.conf;
+        expires 1y;
+        add_header Cache-Control "public, immutable" always;
+        access_log off;
+        try_files $uri =404;
+    }
+
+    location = /favicon.svg {
+        include /etc/nginx/snippets/security-headers.conf;
+        expires 7d;
+        access_log off;
+    }
+
+    # ------------------------------------------------------------ SPA routing
+    # Client-side routes such as /catalog and /product/:id have no file on disk,
+    # so unmatched paths fall back to the app shell. index.html itself must never
+    # be cached, or a deploy would leave browsers requesting stale asset names.
+    location / {
+        include /etc/nginx/snippets/security-headers.conf;
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache, must-revalidate" always;
+    }
+}

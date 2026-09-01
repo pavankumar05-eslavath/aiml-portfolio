@@ -1,0 +1,126 @@
+name: AIML-5 Multimodal Product Search
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'aiml5-multimodal-product-search/**'
+      - '.github/workflows/aiml5-ci.yml'
+  pull_request:
+    paths:
+      - 'aiml5-multimodal-product-search/**'
+      - '.github/workflows/aiml5-ci.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: aiml5-multimodal-product-search
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            aiml5-multimodal-product-search/requirements.txt
+            aiml5-multimodal-product-search/backend/requirements-dev.txt
+
+      # requirements.txt pins the +cpu torch wheel from PyTorch's index. The PyPI
+      # default is the CUDA build: ~2.5 GB of nvidia libraries this project never
+      # loads, which would also exhaust the runner's disk.
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r backend/requirements-dev.txt
+
+      # scripts/ sits outside backend/ but shares its ruff configuration, so the
+      # config must be passed explicitly - otherwise the directory is silently
+      # never linted, which is exactly what happened during development.
+      - name: Lint
+        run: |
+          cd backend && ruff check . && ruff format --check .
+          cd .. && ruff check scripts/ --config backend/pyproject.toml
+          ruff format --check scripts/ --config backend/pyproject.toml
+
+      - name: Type-check
+        run: cd backend && mypy
+
+      # The fast suite needs NO network and NO model weights. The database and the
+      # vector store are real (SQLite on a temp file, Qdrant embedded on a temp
+      # dir); only the encoder is replaced by a deterministic hash-derived fake.
+      # That is what makes the retrieval and ranking logic testable in CI at all.
+      #
+      # The 9 tests that load the real ~600 MB CLIP checkpoint are marked `slow`
+      # and skipped unless RUN_SLOW_TESTS=1, so CI is not gated on the Hugging
+      # Face Hub. Every figure in INSIGHTS.md comes from a local run with the real
+      # model and the 6,000-product catalogue.
+      - name: Tests
+        run: cd backend && pytest -q --cov=app --cov-report=term
+
+      # Proves the migration matches the ORM, which the models could otherwise
+      # drift away from unnoticed.
+      - name: Migrations apply
+        env:
+          DATABASE_URL: sqlite+aiosqlite:////tmp/ci.db
+        run: cd backend && alembic upgrade head
+
+      # `make all` is deliberately NOT run here. It downloads ~260 MB of Parquet
+      # shards plus the CLIP checkpoint and then embeds 1,000 products, which is
+      # several minutes of work gated on an external host. The commands are
+      # documented in the README and the reported metrics come from a local run.
+      - name: Verify the app builds and the API surface is intact
+        run: |
+          cd backend
+          python -c "
+          from app.main import create_app
+          spec = create_app().openapi()
+          n = sum(len(ops) for ops in spec['paths'].values())
+          assert n == 17, f'expected 17 endpoints, found {n}'
+          print(f'OK: {n} endpoints across {len(spec[\"paths\"])} paths')
+          "
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: aiml5-multimodal-product-search/frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: aiml5-multimodal-product-search/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npx tsc -b
+
+      # Gate on errors. There are 5 known advisory warnings, all the React
+      # Compiler's set-state-in-effect guidance on the data-fetching hooks; the
+      # reasoning for keeping them is in src/hooks/useCatalog.ts. --max-warnings
+      # stops that number growing silently.
+      - name: Lint
+        run: npx oxlint --max-warnings=8
+
+      - name: Build
+        run: npx vite build
+
+      - name: Upload build output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiml5-frontend-dist
+          path: aiml5-multimodal-product-search/frontend/dist/
+          retention-days: 14
+          if-no-files-found: ignore

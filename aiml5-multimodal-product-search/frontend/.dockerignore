@@ -1,0 +1,13 @@
+# Keep the build context small. node_modules in particular must not be copied:
+# `npm ci` reinstalls it inside the image for the correct platform.
+node_modules/
+dist/
+.vite/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+Dockerfile
+.dockerignore

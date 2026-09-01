@@ -1,7 +1,7 @@
 # AI / ML Portfolio — Complete Guide
 
 **Author:** Pavan Kumar Eslavath · IIT Madras
-**Purpose:** Four end-to-end machine learning projects, each ending in a defensible claim rather than a score
+**Purpose:** Five end-to-end machine learning projects, each ending in a defensible claim rather than a score
 **GitHub:** [`pavankumar05-eslavath`](https://github.com/pavankumar05-eslavath)
 
 This document explains what each project is, what it found, how to run it, and which files
@@ -17,7 +17,7 @@ repositories.
 
 1. [The short version](#1-the-short-version)
 2. [Setup — running any project in 5 minutes](#2-setup--running-any-project-in-5-minutes)
-3. [The four projects in detail](#3-the-four-projects-in-detail)
+3. [The five projects in detail](#3-the-five-projects-in-detail)
 4. [Reading order — understanding a project fast](#4-reading-order--understanding-a-project-fast)
 5. [The bugs found and documented](#5-the-bugs-found-and-documented)
 6. [Verified numbers reference](#6-verified-numbers-reference)
@@ -34,10 +34,12 @@ repositories.
 | **AIML-2** | [Indian Startup Funding, audited](./aiml2-indian-startup-funding) | Kaggle, 3,044 rounds | The largest "USD" amount is **rupees**, and one cell is **10.1%** of the dataset total. The time axis runs backwards versus reality. |
 | **AIML-3** | [Churn Prediction & Explainability](./aiml3-churn-explainability) | Telco, 7,043 customers | XGBoost does **not** significantly beat untuned logistic regression (p = 0.469). A per-customer expected-value rule beats the best global threshold with **half the contacts**. |
 | **AIML-4** | [Demand Forecasting & Inventory](./aiml4-demand-forecasting) | M5, 1,003,600 rows | ML wins on **5% of series**; on the 92% that are intermittent, a classical baseline wins outright. Forecast-driven inventory cuts stockouts **22%**. |
+| **AIML-5** | [Multimodal Product Search](./aiml5-multimodal-product-search) | Fashion catalogue, 6,000 products | Image+text fusion beats both single modalities (**nDCG@10 0.617** vs 0.595 / 0.395), but the optimal image weight varies **5×** with query intent, so no global value is right. A **7.7× collapse** when the image is over-weighted on "change this attribute" queries. |
 
-The through-line: **every project reports a baseline, and two of the four conclude that the
-sophisticated model did not earn its complexity.** That is the point. A portfolio where every
-model wins is a portfolio where the baselines were chosen to lose.
+The through-line: **every project reports a baseline, and two of the five conclude that the
+sophisticated model did not earn its complexity.** A third — AIML-5 — finds that it *does*, and
+then finds that the parameter making it work cannot be fixed globally. That is the point. A
+portfolio where every model wins is a portfolio where the baselines were chosen to lose.
 
 ---
 
@@ -45,7 +47,7 @@ model wins is a portfolio where the baselines were chosen to lose.
 
 ```bash
 git clone https://github.com/pavankumar05-eslavath/aiml-portfolio.git
-cd aiml-portfolio/aiml4-demand-forecasting        # or aiml1-… / aiml2-… / aiml3-…
+cd aiml-portfolio/aiml4-demand-forecasting        # or aiml1-… / aiml2-… / aiml3-… / aiml5-…
 
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -66,10 +68,11 @@ Every project states which figures require the real data.
 | AIML-2 | 416 KB CSV, CC0 mirror | ~10 s |
 | AIML-3 | 977 KB CSV, public mirror | ~2 min |
 | AIML-4 | 133 MB of M5 parquet, public mirror | **~17 min** (`train` is 15 of it) |
+| AIML-5 | 260 MB of Parquet shards, public mirror, + a ~600 MB CLIP checkpoint | **~6 min** (indexing 1,000 products is most of it) |
 
 ---
 
-## 3. The four projects in detail
+## 3. The five projects in detail
 
 ### AIML-1 — Online Payment Fraud Detection, audited
 
@@ -175,6 +178,64 @@ design) → `src/inventory/policy.py`
 
 ---
 
+### AIML-5 — Multimodal Product Search
+
+**Question:** can a shopper search with a photo *and* words at the same time — "this shoe, but
+in black" — and can the system say why each result ranked where it did?
+
+This is the one project here that is a **running system** rather than an analysis: a FastAPI
+service, a Qdrant vector index, a React interface, 444 tests. It is also the only one where a
+neural model is load-bearing rather than decorative — see §8.
+
+**The design decision.** The obvious implementation averages the image and text query
+embeddings into one vector and does a single lookup. That is implemented and benchmarked here
+(`FUSION_STRATEGY=embedding_fusion`), but it is not the default, because averaging destroys
+attribution: no result can be traced back to "matched visually" versus "matched the words".
+Instead each product carries **two named vectors** in one Qdrant collection, producing up to
+five retrieval channels fused at the *score* level, so every response reports each channel's
+raw cosine, normalised score, weight and rank.
+
+**Fusion earns its place** — measured on one fixed query set so difficulty is held constant:
+
+| channels used | nDCG@10 | MRR | P@10 |
+|---|---:|---:|---:|
+| image only | 0.395 | 0.527 | 0.385 |
+| text only | 0.595 | 0.804 | 0.550 |
+| **both, fused** | **0.617** | 0.797 | **0.580** |
+
+**But the weighting cannot be fixed.** Multimodal queries divide into two kinds with opposite
+optima, so they are swept separately:
+
+| query style | best `IMAGE_WEIGHT` | nDCG@10 | at the other's optimum |
+|---|---:|---:|---:|
+| contradiction — *"but in black"* | **0.1** | 0.429 | 0.279 |
+| agreement — text restates the image | **0.5** | 0.831 | 0.805 |
+
+Contradiction queries collapse **7.7×** (0.429 → 0.056) as image weight rises, because
+weighting the image drags results back toward the attribute the user asked to *change*. Both
+groups still beat their single-modality baselines at their own optimum — so the architecture
+holds — but **no single global weight is right**, which is why the weight is a per-request
+parameter and a slider in the UI rather than a constant.
+
+**An unfair comparison that reached the wrong conclusion.** The strategy sweep first pitted
+`weighted_sum` at its default 50/50 weighting against `embedding_fusion` at a text-heavy
+α = 0.3, and "showed" the naive single-vector approach winning. Since half the benchmark
+strongly prefers text, that was an artefact of the weighting, not the mechanism. Pinning the
+image share equal reversed the ordering (0.598 vs 0.574). The script now enforces the match.
+`embedding_fusion` does keep the best **MRR** (0.832) — a real trade-off, reported as one.
+
+**The design's centrepiece, reported at its true size.** Channels sit on genuinely different
+scales (image↔image 0.7305, text↔text 0.4499, image↔text 0.3124), so normalising before
+combining is sound reasoning. Measured payoff: **+0.005 to +0.027** nDCG@10. It is kept
+because it makes the weights *mean what they say*, not because it transforms quality. The
+lexical channel measured **worse than off** and ships disabled.
+
+**Read:** `INSIGHTS.md` → `docs/evaluation.md` (methodology and its ten caveats) →
+`backend/app/services/fusion.py` (the ranking layer — pure, and the one module at 100%
+coverage) → `docs/architecture.md`
+
+---
+
 ## 4. Reading order — understanding a project fast
 
 1. **`README.md`** — the claim and the evidence, in the first three paragraphs.
@@ -205,10 +266,21 @@ generalises.
 | 9 | AIML-4 | Croston implemented as size × rate | Algebraically **identical to a moving average**; a duplicate baseline masquerading as a method |
 | 10 | AIML-4 | Empirical quantile recomputed from one forecast origin | Scenario table **identical at every service level** — the quantile of one observation is that observation |
 | 11 | AIML-4 | A hard-coded narrative sentence | Claimed two estimators "disagree" after a fix made them agree to 1.3%; now computed from the data |
+| 12 | AIML-5 | The strategy comparison used **unequal weightings** | Concluded the naive single-vector fusion beat score-level fusion; matching the image share **reversed** it |
+| 13 | AIML-5 | `coverage` silently under-reported tested code | SQLAlchemy's async bridge runs the DBAPI in **greenlets**; without `concurrency=[thread,greenlet]` coverage loses its trace after any `await` touching the database — a route at 100% reported as 83% |
+| 14 | AIML-5 | `.gitignore` denied `data/full|raw|local` **individually** | A later-added `data/eval/` was trackable; **6,000 images** were one `git add` from being committed |
+| 15 | AIML-5 | A bare `models/` ignore pattern | Silently excluded `backend/app/models/` — the **entire ORM package** — from the repository |
+| 16 | AIML-5 | `Path.is_symlink()` called **after** `.resolve()` | Always `False`; a security check that looked meaningful and guaranteed nothing |
+| 17 | AIML-5 | The sample fetcher downloaded **one of two** dataset shards | Half the catalogue arrived with no image and indexed as text-only; found by cloning the repo and following my own README |
 
-Bugs 2, 3 and 10 share a shape worth internalising: **the code ran, produced plausible
-numbers, and was wrong.** Only a total, an inverse, or a table that failed to vary gave them
-away.
+Bugs 2, 3, 10 and 13 share a shape worth internalising: **the code ran, produced plausible
+numbers, and was wrong.** Only a total, an inverse, a table that failed to vary, or a coverage
+figure that disagreed with a spy test gave them away.
+
+Bugs 12 and 17 share a different shape: **the mistake was in the measurement, not the
+system.** An unfair benchmark and a half-downloaded dataset both produce output that looks
+entirely reasonable. Neither was found by reading the code — one by asking whether the
+comparison was fair, the other by cloning the repository and following the README verbatim.
 
 ---
 
@@ -242,6 +314,17 @@ intervals **75.04%** vs nominal 80% · safety stock normal 11.60 / empirical 11.
 0.987, 60 windows) · units short **526.7 vs 675.8** · total cost **3,231.88 vs 3,500.94 CU** ·
 cost optimum **95%**, newsvendor ratio **0.9631** · SNAP-day WAPE 0.8033 vs 0.7619
 
+**AIML-5** · 6,000 products · 46 benchmark queries · CLIP ViT-B/32 (512-d), CPU
+nDCG@10: text **0.677**, image **0.878**, multimodal **0.617**, all queries **0.694** · MRR
+0.891 / **1.000** / 0.797 · ablation on the multimodal set: image-only 0.395 < text-only 0.595
+< **both 0.617** · `IMAGE_WEIGHT` optima **0.1** (contradiction, 0.429) vs **0.5** (agreement,
+0.831), collapse to **0.056** at 1.0 · strategies at matched image share: weighted_sum
+**0.598**, rrf 0.575, embedding_fusion 0.574 (MRR **0.832**) · normalisation zscore **0.682** /
+none 0.655–0.677 / minmax 0.646 · cross-modal top-1 **0.812** templated vs **0.771** raw name ·
+cosines image↔image **0.7305**, text↔text 0.4499, image↔text **0.3124** (gap **+0.4181**) ·
+indexing **19–21 products/s**, re-index unchanged **0.1 s** vs 46.8 s · search latency ~28 ms
+text / ~100 ms multimodal · **444 tests, 90% coverage**
+
 ---
 
 ## 7. Concepts glossary
@@ -271,10 +354,16 @@ cost optimum **95%**, newsvendor ratio **0.9631** · SNAP-day WAPE 0.8033 vs 0.7
   repositories.
 - **No orchestration or warehouse modelling.** That lives in the
   [data engineering portfolio](https://github.com/pavankumar05-eslavath/data-engineering-portfolio).
-- **No deep learning.** All four problems are tabular or panel data, where gradient boosting
-  is the honest choice; a neural network here would be decoration.
-- **No leaderboard chasing.** AIML-1 exists to show a 99.9% score can be meaningless, and
-  AIML-3 and AIML-4 both conclude the complex model did not earn its place.
+- **No deep learning where it would be decoration.** AIML-1 to AIML-4 are tabular or panel
+  problems, where gradient boosting is the honest choice and a neural network would add
+  nothing. AIML-5 is the exception that states the rule: multimodal retrieval *requires* a
+  shared image-text embedding space, which no gradient-boosting model provides — and the
+  project verifies that the space is genuinely shared (cross-modal top-1 **0.812**) rather
+  than assuming it. The encoder is also **pretrained, not trained**: nothing here fine-tunes a
+  large model.
+- **No leaderboard chasing.** AIML-1 exists to show a 99.9% score can be meaningless,
+  AIML-3 and AIML-4 both conclude the complex model did not earn its place, and AIML-5 reports
+  its own centrepiece (score normalisation) as worth only +0.005 to +0.027.
 - **No committed datasets.** Every project downloads the real file or generates a
   defect-preserving stand-in.
 - **No claimed business results.** Currency figures in AIML-3 and AIML-4 come from **declared

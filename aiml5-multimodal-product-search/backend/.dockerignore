@@ -1,0 +1,19 @@
+# Keep the build context small and free of local state.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+tests/
+*.md
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite*
